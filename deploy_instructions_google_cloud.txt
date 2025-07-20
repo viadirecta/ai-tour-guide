@@ -1,0 +1,108 @@
+#####################################################################
+#                                                                   #
+#   DEPLOYING YOUR AI TOUR GUIDE PLATFORM TO GOOGLE CLOUD RUN       #
+#   (AI Standard – fully-managed, autoscale-to-zero)                #
+#                                                                   #
+#####################################################################
+
+This guide replaces the Ubuntu/Nginx steps with a **zero-ops** Cloud Run
+deployment. You only need a browser and the Google Cloud CLI.
+
+---------------------------------
+-- PREREQUISITES
+---------------------------------
+1. A Google Cloud account (free tier is enough).
+2. gcloud CLI installed locally (or use Cloud Shell).
+3. Your code in a public or private GitHub/GitLab repository.
+4. A Gemini API key (same as before).
+
+---------------------------------
+-- STEP 0: ONE-TIME PROJECT SET-UP
+---------------------------------
+# 1. Create / select a project
+gcloud projects create gemini-tour-guide --set-as-default
+# OR gcloud config set project YOUR_EXISTING_PROJECT
+
+# 2. Enable required APIs (Cloud Run + Artifact Registry)
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com
+
+# 3. Create a Docker repository in your region (us-central1 used below)
+gcloud artifacts repositories create tour-guide-repo \
+  --repository-format=docker \
+  --location=us-central1
+
+---------------------------------
+-- STEP 1: ADD A 3-LINE Dockerfile
+---------------------------------
+Place the following file in the **root** of your repo
+next to package.json and vite.config.ts:
+
+----- Dockerfile -----
+# Use the official lightweight Node image
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev        # faster install for production
+COPY . .
+RUN npm run build            # generates /app/dist
+# Serve with a tiny static server
+RUN npm install -g serve
+CMD ["serve", "-s", "dist", "-l", "8080"]
+EXPOSE 8080
+----------------------
+
+Commit & push the Dockerfile.
+
+---------------------------------
+-- STEP 2: BUILD & DEPLOY IN ONE COMMAND
+---------------------------------
+# 1. Point gcloud to your repo
+gcloud run deploy tour-guide \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars API_KEY=your_actual_gemini_api_key_here
+
+What happens:
+• Cloud Build reads your Dockerfile, runs npm build, pushes the image to
+  Artifact Registry, then spins up a Cloud Run service.
+• After ~2 minutes you’ll see a HTTPS URL like
+  https://tour-guide-abc123-uc.a.run.app
+
+---------------------------------
+-- STEP 3: OPTIONAL CUSTOM DOMAIN + HTTPS
+---------------------------------
+Cloud Run already gives you HTTPS on the *.run.app URL.
+To use your own domain:
+
+1. In Cloud Run console: “Manage Custom Domains → Add Mapping”.
+2. Add a CNAME record in your DNS provider pointing to
+   ghs.googlehosted.com.
+Google issues a Let’s Encrypt certificate automatically.
+
+---------------------------------
+-- STEP 4: COST & SCALE
+---------------------------------
+• You pay only for CPU+RAM while requests are active (to the nearest 0.1s).
+• The default 512 MiB / 1 vCPU instance costs ~$0.00002400 per second.
+• Autoscale-to-zero means $0 when nobody visits.
+
+---------------------------------
+-- STEP 5: REDEPLOY AFTER CODE CHANGES
+---------------------------------
+Simply run the same command again:
+gcloud run deploy tour-guide --source . --region us-central1
+
+Cloud Build re-uses layers that haven’t changed, so updates are fast.
+
+---------------------------------
+-- SECURITY NOTE (same as before)
+---------------------------------
+Embedding the Gemini API key in the client bundle is still **not safe** for
+public apps. In a follow-up step you can:
+a) Move API calls to a tiny Cloud Run backend (Express/Fastify) that keeps
+   the key server-side, or
+b) Store the key in Secret Manager and inject it into the container at
+   runtime via --set-secrets instead of --set-env-vars.
+
+Your AI Tour Guide is now live at the HTTPS URL returned by gcloud run deploy!

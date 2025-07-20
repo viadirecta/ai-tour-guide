@@ -1,0 +1,120 @@
+
+#####################################################################
+#                                                                   #
+#      DEPLOYING YOUR AI TOUR GUIDE PLATFORM TO AN UBUNTU VPS       #
+#                                                                   #
+#####################################################################
+
+This guide provides step-by-step instructions to deploy your Vite/React 
+application to a production environment on an Ubuntu server using Nginx.
+
+---------------------------------
+-- PREREQUISITES
+---------------------------------
+1. An Ubuntu 20.04 or newer VPS (Virtual Private Server).
+2. SSH access to your server.
+3. Your application code hosted in a Git repository (e.g., GitHub).
+4. A domain name pointed to your VPS's IP address (recommended for HTTPS).
+
+---------------------------------
+-- STEP 1: SET UP YOUR VPS
+---------------------------------
+Connect to your server via SSH and install the necessary software.
+
+1. Connect to your server (replace with your username and IP):
+   ssh your_username@your_server_ip
+
+2. Update your package manager and install dependencies:
+   sudo apt update
+   sudo apt upgrade -y
+   sudo apt install -y curl git nginx
+
+3. Install Node.js using nvm (Node Version Manager) for better version management:
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+   # Load nvm into your shell session
+   export NVM_DIR="$HOME/.nvm"
+   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+   # Install the latest Long-Term Support (LTS) version of Node.js
+   nvm install --lts
+
+---------------------------------
+-- STEP 2: BUILD THE APPLICATION ON THE SERVER
+---------------------------------
+Now, pull your code onto the server and build the production-ready files.
+
+1. Clone your project from your repository:
+   # Replace with your actual repository URL
+   git clone https://github.com/your_username/your_repo.git
+
+2. Navigate into the project directory:
+   # Replace with your project's folder name (e.g., gemini-ai-tour-guide)
+   cd your_repo
+
+3. Create an environment file to store your API key:
+   nano .env
+
+4. Add your API key to this file. The file should contain only this line:
+   API_KEY=your_actual_gemini_api_key_here
+
+   ---
+   [SECURITY WARNING]: This method embeds your API key in the client-side JavaScript files. This is acceptable for personal projects, but for a public-facing application, it is highly recommended to use a backend proxy to protect your key.
+   ---
+
+5. Install dependencies and build the application:
+   npm install
+   npm run build
+
+   This command runs `tsc` and `vite build` as specified in your `package.json`. It creates an optimized build in a new directory named `dist`.
+
+---------------------------------
+-- STEP 3: CONFIGURE NGINX TO SERVE YOUR APP
+---------------------------------
+We will now configure the Nginx web server to serve the static files from your `dist` folder.
+
+1. Create a new Nginx configuration file for your site. Replace `your_domain.com` with your domain or IP address.
+   sudo nano /etc/nginx/sites-available/your_domain.com
+
+2. Paste the following configuration into the file. Be sure to replace `your_domain.com` and `/home/your_username/your_repo` with your actual values.
+
+   ```nginx
+   server {
+       listen 80;
+       server_name your_domain.com;
+
+       # Path to your built application files
+       root /home/your_username/your_repo/dist;
+       index index.html;
+
+       location / {
+           # This is crucial for single-page applications like React
+           try_files $uri $uri/ /index.html;
+       }
+   }
+   ```
+
+3. Enable your site by creating a symbolic link to the `sites-enabled` directory:
+   sudo ln -s /etc/nginx/sites-available/your_domain.com /etc/nginx/sites-enabled/
+
+4. Test your Nginx configuration for errors:
+   sudo nginx -t
+
+5. If the test is successful, restart Nginx to apply the changes:
+   sudo systemctl restart nginx
+
+Your application should now be live at http://your_domain.com!
+
+---------------------------------
+-- STEP 4 (RECOMMENDED): SECURE WITH HTTPS (SSL CERTIFICATE)
+---------------------------------
+If you have a domain name, you should secure your site with a free SSL certificate from Let's Encrypt.
+
+1. Install Certbot, the Let's Encrypt client:
+   sudo apt install -y certbot python3-certbot-nginx
+
+2. Run Certbot to automatically obtain and install a certificate:
+   # Replace with your domain name
+   sudo certbot --nginx -d your_domain.com
+
+   Follow the on-screen prompts. Certbot will handle the entire process and automatically reload Nginx. Your site will then be accessible via `https://`.

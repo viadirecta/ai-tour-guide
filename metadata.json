@@ -1,0 +1,8 @@
+{
+  "name": "AI Tour Guide",
+  "description": "An AI-powered tour guide assistant. Supports camera capture for references and includes a tipping mechanism for the guide.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "prompt": ""
+}
