@@ -29,5 +29,5 @@ dist-ssr
 *.sw*
 
 
-.env.bak
+.env
 
