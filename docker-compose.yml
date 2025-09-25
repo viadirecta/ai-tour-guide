@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: qr-tour-db
+    environment:
+      POSTGRES_DB: qr_tour_guide
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+    networks:
+      - qr-tour-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qr-tour-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/qr_tour_guide
+      SECRET_KEY: your-secret-key-change-in-production
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT}
+      GOOGLE_CLOUD_STORAGE_BUCKET: ${GOOGLE_CLOUD_STORAGE_BUCKET}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/service-account-key.json
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    volumes:
+      - ./service-account-key.json:/app/service-account-key.json:ro
+    networks:
+      - qr-tour-network
+
+  # Frontend (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: qr-tour-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - qr-tour-network
+
+volumes:
+  postgres_data:
+
+networks:
+  qr-tour-network:
+    driver: bridge
